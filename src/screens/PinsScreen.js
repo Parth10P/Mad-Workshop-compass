@@ -2,25 +2,29 @@ import React, { useEffect, useState } from "react";
 import { View, StyleSheet, Share } from "react-native";
 import { Card, List, IconButton, Text, Snackbar } from "react-native-paper";
 import { loadPins, savePins } from "../storage";
-
 export default function PinsScreen() {
   const [pins, setPins] = useState([]);
   const [snack, setSnack] = useState("");
-
   useEffect(() => {
+    const load = async () => {
+      const saved = await loadPins();
+      setPins(saved);
+    };
+    load();
     // TODO(5): Load saved pins into state on mount
   }, []);
-
   const remove = async (id) => {
     // TODO(6): Delete pin by id and persist via savePins(next)
+    const next = pins.filter((p) => p.id !== id);
+    const a = await savePins(next);
+    setPins(next);
     setSnack("TODO: delete pin");
   };
-
   const sharePin = async (p) => {
     // TODO(7): Share pin location nicely (include timestamp if you like)
+    await Share.share({ message: `${p.lat},${p.lon}` });
     setSnack("TODO: share pin");
   };
-
   return (
     <View style={styles.container}>
       <Card style={styles.card}>
@@ -53,7 +57,6 @@ export default function PinsScreen() {
           )}
         </Card.Content>
       </Card>
-
       <Snackbar
         visible={!!snack}
         onDismiss={() => setSnack("")}
@@ -64,7 +67,6 @@ export default function PinsScreen() {
     </View>
   );
 }
-
 const styles = StyleSheet.create({
   container: { flex: 1, padding: 16 },
   card: { borderRadius: 16 },

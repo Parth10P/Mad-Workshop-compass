@@ -14,44 +14,42 @@ import * as Clipboard from "expo-clipboard";
 import { LinearGradient } from "expo-linear-gradient";
 import { fmt, toCardinal, nowISO } from "../utils/geo";
 import { loadPins, savePins } from "../storage";
-
 export default function CompassScreen({ navigation }) {
   const [heading, setHeading] = useState(null);
   const [coords, setCoords] = useState(null);
   const [pins, setPins] = useState([]);
   const [snack, setSnack] = useState("");
   const [bob] = useState(() => new Animated.Value(0)); // given
-
   // TODO(1): Ask for location permission, get initial position, and start heading watcher
   useEffect(() => {
     let headingSub = null;
     let mounted = true;
-
     const askForPermission = async () => {
       // TODO a) Ask for location permission
-
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== "granted") {
+        setSnack("Location permission not granted");
+        return;
+      }
       // TODO b) Get One-time position and save the coordinates
-
+      const position = await Location.getCurrentPositionAsync({});
+      if (mounted) setCoords(position.coords);
       //* (GIVEN): Heading watcher (0..360 degrees)
       headingSub = await Location.watchHeadingAsync(({ trueHeading }) => {
         if (!mounted) return;
         if (typeof trueHeading === "number") setHeading(trueHeading);
       });
-
       // TODO c) Load saved pins
       const saved = await loadPins();
       if (mounted) setPins(saved);
     };
-
     askForPermission();
-
     // Cleaning the component
     return () => {
       mounted = false;
       headingSub?.remove?.();
     };
   }, []);
-
   //* (GIVEN): gentle bob animation
   useEffect(() => {
     const loop = Animated.loop(
@@ -73,7 +71,6 @@ export default function CompassScreen({ navigation }) {
     loop.start();
     return () => loop.stop();
   }, [bob]);
-
   //* (GIVEN): Gradient orientation from heading (0° = up, clockwise)
   const pointsForHeading = (deg = 0) => {
     const rad = (deg * Math.PI) / 180;
@@ -90,13 +87,23 @@ export default function CompassScreen({ navigation }) {
       end: { x: clamp(ex), y: clamp(ey) },
     };
   };
-
   const dropPin = async () => {
     if (!coords) {
       setSnack("No GPS fix yet");
       return;
     }
     // TODO(2): push new pin {id, lat, lon, heading, ts} to state and savePins(next)
+    setSnack("TODO: save pin");
+    const newPin = {
+      id: Date.now(),
+      lat: coords.latitude,
+      lon: coords.longitude,
+      heading,
+      ts: nowISO(),
+    };
+
+    setPins((prev) => [...prev, newPin]);
+    await savePins([...pins, newPin]);
     setSnack("TODO: save pin");
   };
 
@@ -106,20 +113,22 @@ export default function CompassScreen({ navigation }) {
       return;
     }
     // TODO(3): Clipboard.setStringAsync("lat, lon") then snackbar
+    const coppy= await Clipboard.setStringAsync(`lat ${coords.latitude},long ${coords.longitude}`)
+    setSnack("TODO: copy")
   };
-
   const shareCoords = async () => {
     if (!coords) {
       setSnack("TODO: share");
       return;
     }
     // TODO(4): Share.share with message including coords + heading + cardinal
+    const sharee= await Share.share({
+      message:`${coords.latitude},${coords.longitude},${heading}`
+    })
   };
-
   // Make DARK end point opposite heading: add 180°
   const { start, end } = pointsForHeading(((heading ?? 0) + 180) % 360);
   const bobY = bob.interpolate({ inputRange: [0, 1], outputRange: [0, -8] });
-
   return (
     <>
       <Appbar.Header>
@@ -129,7 +138,6 @@ export default function CompassScreen({ navigation }) {
           onPress={() => navigation.navigate("Pins")}
         />
       </Appbar.Header>
-
       <View style={styles.container}>
         <Card style={styles.card}>
           <Card.Content style={styles.center}>
@@ -143,12 +151,10 @@ export default function CompassScreen({ navigation }) {
                 style={styles.gradient}
               />
             </Animated.View>
-
             <Text variant="displaySmall" style={styles.headingText}>
               {heading != null ? `${Math.round(heading)}°` : "—"}
             </Text>
             <Chip>{toCardinal(heading ?? 0)}</Chip>
-
             <View style={styles.actionsRow}>
               <Button onPress={dropPin}>Save</Button>
               <Button onPress={copyCoords}>Copy</Button>
@@ -157,7 +163,6 @@ export default function CompassScreen({ navigation }) {
           </Card.Content>
         </Card>
       </View>
-
       <Snackbar
         visible={!!snack}
         onDismiss={() => setSnack("")}
@@ -168,7 +173,6 @@ export default function CompassScreen({ navigation }) {
     </>
   );
 }
-
 const styles = StyleSheet.create({
   container: { flex: 1, padding: 16 },
   card: { borderRadius: 16 },
